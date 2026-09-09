@@ -1,0 +1,30 @@
+<template>
+  <svg
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <rect
+      x="2"
+      y="2"
+      width="28"
+      height="28"
+      rx="7"
+      fill="var(--ui-primary)"
+    />
+    <path
+      d="M9 20.5L14.2 11l3.1 5.4L20.1 13l3.9 7.5"
+      stroke="white"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <circle
+      cx="11.5"
+      cy="21.5"
+      r="1.6"
+      fill="white"
+    />
+  </svg>
+</template>

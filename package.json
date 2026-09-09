@@ -1,0 +1,52 @@
+{
+  "name": "svgforge-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Open-source SVG editor built with Nuxt 4 and Nuxt UI v4.",
+  "author": "SVGForge",
+  "license": "MIT",
+  "homepage": "https://github.com/liqiang88/svgforege-editor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liqiang88/svgforege-editor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/liqiang88/svgforege-editor/issues"
+  },
+  "keywords": [
+    "svg",
+    "editor",
+    "nuxt",
+    "nuxt-ui",
+    "vue",
+    "open-source",
+    "vector"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.129",
+    "@iconify-json/simple-icons": "^1.2.94",
+    "@nuxt/ui": "^4.11.0",
+    "nuxt": "^4.5.2",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
+    "eslint": "^10.10.0",
+    "typescript": "^6.0.3",
+    "vue-tsc": "^3.3.11"
+  },
+  "packageManager": "pnpm@10.28.0"
+}
