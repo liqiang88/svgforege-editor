@@ -7,7 +7,6 @@
           <input type="file" accept=".svg,image/svg+xml" @change="onUpload" />
         </label>
         <button type="button" class="tb-btn" @click="onPaste">Paste</button>
-        <button type="button" class="tb-btn" @click="pickOpen = true">Pick Icon</button>
       </div>
       <div class="top-meta">
         <strong>{{ fileName }}</strong>
@@ -127,7 +126,7 @@
             </div>
           </div>
           <p v-if="error" class="stage-banner error">{{ error }}</p>
-          <p v-else-if="!svgCode" class="stage-banner">Upload, paste, or pick an icon to start</p>
+          <p v-else-if="!svgCode" class="stage-banner">Upload or paste an SVG to start</p>
           <p v-else class="stage-banner tip">Drag to move · handles to resize · Shift locks aspect</p>
         </div>
       </section>
@@ -313,25 +312,6 @@
       <pre>{{ formatOutput(codeTab) }}</pre>
     </div>
 
-    <div v-if="pickOpen" class="modal-backdrop" @click.self="pickOpen = false">
-      <div class="modal">
-        <h2>Pick Icon</h2>
-        <p>Enter an Iconify key (e.g. <code>lucide:house</code>) to load from Iconify CDN.</p>
-        <input v-model="pickKey" type="text" placeholder="prefix:name" @keyup.enter="loadPickedIcon" />
-        <div v-if="pickKey" class="pick-preview">
-          <Icon v-if="pickKey.includes(':')" :icon="pickKey" width="28" height="28" />
-          <code>{{ pickKey }}</code>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="tb-btn" @click="pickOpen = false">Cancel</button>
-          <button type="button" class="tb-btn solid" :disabled="pickBusy" @click="loadPickedIcon">
-            {{ pickBusy ? 'Loading…' : 'Load' }}
-          </button>
-        </div>
-        <p v-if="pickError" class="error">{{ pickError }}</p>
-      </div>
-    </div>
-
     <p v-if="toast" class="toast">{{ toast }}</p>
   </div>
 </template>
@@ -348,7 +328,6 @@
 import type { DomLayerNode } from './domLayerTypes'
 import { SVG_ROOT_ID } from './domLayerTypes'
 import SvgStudioLayerItem from './SvgStudioLayerItem.vue'
-import { Icon } from '@iconify/vue'
 import {
   RESIZE_HANDLES,
   clientToParentLocal,
@@ -388,10 +367,6 @@ const showCode = ref(false)
 const codeTab = ref<'svg' | 'jsx' | 'tsx' | 'html' | 'css' | 'datauri'>('svg')
 const rasterFmt = ref<'png' | 'webp'>('png')
 const rasterScale = ref(2)
-const pickOpen = ref(false)
-const pickKey = ref('')
-const pickBusy = ref(false)
-const pickError = ref('')
 const toast = ref('')
 
 const insp = reactive({
@@ -1406,30 +1381,6 @@ async function onPaste() {
   }
 }
 
-async function loadPickedIcon() {
-  const key = pickKey.value.trim()
-  if (!key.includes(':')) {
-    pickError.value = 'Use prefix:name'
-    return
-  }
-  pickBusy.value = true
-  pickError.value = ''
-  try {
-    const [prefix, ...rest] = key.split(':')
-    const name = rest.join(':')
-    const svg = await $fetch<string>(
-      `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg`,
-    )
-    if (!svg || !/<svg[\s>]/i.test(svg)) throw new Error('Icon not found')
-    await loadSvgString(svg, `${prefix}-${name}.svg`)
-    pickOpen.value = false
-  } catch (e: unknown) {
-    pickError.value = e instanceof Error ? e.message : 'Failed to load'
-  } finally {
-    pickBusy.value = false
-  }
-}
-
 function resetAll() {
   if (originalSvg.value) void loadSvgString(originalSvg.value, fileName.value)
 }
@@ -1510,7 +1461,6 @@ defineExpose({
 .format-row,
 .raster-row,
 .rotate-btns,
-.modal-actions,
 .color-row {
   display: flex;
   flex-wrap: wrap;
@@ -1974,8 +1924,7 @@ defineExpose({
 }
 
 .wh-row input,
-.slider-row .num,
-.modal input {
+.slider-row .num {
   width: 100%;
   padding: 0.4rem 0.45rem;
   border: 1px solid var(--sf-border);
@@ -2084,85 +2033,6 @@ input[type='color'] {
   font-size: 0.78rem;
   white-space: pre-wrap;
   word-break: break-all;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  padding: 1rem;
-}
-
-.modal {
-  width: min(420px, 100%);
-  background: #fff;
-  border-radius: 12px;
-  padding: 1.25rem;
-}
-
-.modal h2 {
-  margin: 0 0 0.35rem;
-}
-
-.modal p {
-  margin: 0 0 0.75rem;
-  color: var(--sf-muted);
-  font-size: 0.9rem;
-}
-
-.modal-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
-  color: var(--sf-muted);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.modal input,
-.modal select {
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--sf-border);
-  border-radius: 8px;
-  font-size: 0.9rem;
-  box-sizing: border-box;
-  background: #fff;
-  color: var(--sf-text);
-  font-weight: 500;
-}
-
-.modal a.tb-btn {
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-}
-
-.pick-preview {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin-top: 0.65rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--sf-border);
-  border-radius: 8px;
-  background: #f8fafc;
-  color: var(--sf-text);
-}
-
-.pick-preview code {
-  font-size: 0.85rem;
-  word-break: break-all;
-}
-
-.modal-actions {
-  margin-top: 0.85rem;
-  justify-content: flex-end;
 }
 
 .error {

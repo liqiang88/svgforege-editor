@@ -42,8 +42,8 @@ const features = [
   },
   {
     icon: 'i-lucide-upload',
-    title: '上传 / 粘贴 / Iconify',
-    description: '本地上传、剪贴板粘贴，或通过 Iconify key 拉取图标。'
+    title: '上传 / 粘贴',
+    description: '本地上传 SVG 文件，或从剪贴板粘贴 SVG 代码开始编辑。'
   },
   {
     icon: 'i-lucide-package-open',
