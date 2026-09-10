@@ -1,6 +1,26 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+:root {
+  --sf-bg: #f7f9fc;
+  --sf-surface: #ffffff;
+  --sf-text: #1a2332;
+  --sf-muted: #5a6b7d;
+  --sf-accent: #2563eb;
+  --sf-on-accent: #ffffff;
+  --sf-border: #e2e8f0;
+}
+
+.dark {
+  --sf-bg: #0b1220;
+  --sf-surface: #111827;
+  --sf-text: #e5e7eb;
+  --sf-muted: #94a3b8;
+  --sf-accent: #3b82f6;
+  --sf-on-accent: #ffffff;
+  --sf-border: #1f2937;
+}
+
 @theme static {
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 

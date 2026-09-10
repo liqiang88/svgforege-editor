@@ -21,34 +21,34 @@ const links = [
 
 const features = [
   {
-    icon: 'i-lucide-pen-tool',
-    title: '矢量编辑',
-    description: '路径、形状、图层与节点编辑，适合图标、插画与界面素材。'
+    icon: 'i-lucide-layers',
+    title: '图层与选中',
+    description: 'DOM 图层树、显隐与删除，选中后可拖拽移动与手柄缩放。'
   },
   {
-    icon: 'i-lucide-panels-top-left',
-    title: '现代界面壳',
-    description: 'Nuxt UI v4 站点壳层，自带深色模式与一致设计语言；画布内核基于 SVG-edit。'
+    icon: 'i-lucide-sliders-horizontal',
+    title: '属性检查器',
+    description: '尺寸、填充、描边、透明度、圆角、旋转与翻转。'
   },
   {
-    icon: 'i-lucide-folder-open',
-    title: '打开 / 导出',
-    description: '支持打开本地 SVG，并导出编辑结果，便于嵌入工具链。'
+    icon: 'i-lucide-history',
+    title: '撤销 / 重做',
+    description: '完整历史栈，支持快捷键 Ctrl/Cmd + Z / Y。'
   },
   {
-    icon: 'i-lucide-puzzle',
-    title: '扩展能力',
-    description: '内置网格、形状库、取色、平移、星形等多款扩展，可继续扩展。'
+    icon: 'i-lucide-file-code-2',
+    title: '多格式导出',
+    description: 'SVG / JSX / TSX / HTML / CSS / Data URI，以及 PNG / WEBP。'
+  },
+  {
+    icon: 'i-lucide-upload',
+    title: '上传 / 粘贴 / Iconify',
+    description: '本地上传、剪贴板粘贴，或通过 Iconify key 拉取图标。'
   },
   {
     icon: 'i-lucide-package-open',
-    title: 'MIT 开源',
-    description: '可自由使用、修改与分发，适合个人项目与商业产品集成。'
-  },
-  {
-    icon: 'i-lucide-zap',
-    title: 'Nuxt 4 部署',
-    description: '静态资源 + Nuxt 页面封装，便于独立部署或嵌入现有产品。'
+    title: '从 SVGForge 抽离',
+    description: '核心来自 svgforge-web 的 SvgStudio，独立开源，原项目不变。'
   }
 ]
 </script>
@@ -57,12 +57,12 @@ const features = [
   <div>
     <UPageHero
       title="SVGForge Editor"
-      description="开源 SVG 矢量编辑器。画布能力来自 tools 项目中的 SVG-edit，现已独立抽离为可部署的开源仓库。"
+      description="开源 SVG 矢量编辑器。画布内核抽离自 svgforge 的 SvgStudio：图层、检查器、撤销重做与多格式导出。"
       :links="links"
     >
       <template #headline>
         <UBadge
-          label="Open Source · SVG-edit · Nuxt UI v4"
+          label="Open Source · SvgStudio · Nuxt UI v4"
           variant="subtle"
           color="primary"
         />
@@ -71,8 +71,8 @@ const features = [
 
     <UPageSection
       id="features"
-      title="开箱即用的 SVG 编辑能力"
-      description="编辑器静态内核位于 public/svg-edit，通过 /editor 页面嵌入；原 tools 项目代码保持不变。"
+      title="浏览器内完整编辑闭环"
+      description="上传或粘贴 SVG 后即可编辑；无需后端，导出在本地完成。"
       :features="features"
     />
 
@@ -83,7 +83,7 @@ const features = [
             本地启动
           </h2>
           <p class="text-muted">
-            安装依赖后启动开发服务器，访问 /editor 即可使用完整 SVG 编辑器。
+            安装依赖后访问 /editor 即可使用完整 SvgStudio 编辑器。
           </p>
         </div>
 
