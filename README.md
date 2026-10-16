@@ -8,7 +8,7 @@
 
 ## 在线演示
 
-[https://svgforge.dev/svg-tools/editor/](https://svgforge.dev/svg-tools/editor/)
+[https://svgforge.dev/app/svg-tools/editor/](https://svgforge.dev/app/svg-tools/editor/)
 
 ## 技术栈
 

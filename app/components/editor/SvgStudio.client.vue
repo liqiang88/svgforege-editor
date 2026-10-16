@@ -86,6 +86,88 @@
           @click="onViewportClick"
         >
           <div
+            class="float-toolbar"
+            role="toolbar"
+            aria-label="Drawing tools"
+            @click.stop
+            @pointerdown.stop
+          >
+            <button
+              type="button"
+              class="float-tool"
+              :class="{ active: activeTool === 'select' }"
+              :disabled="!svgCode"
+              title="Select"
+              @click="setActiveTool('select')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l7.5 16 1.8-6.7L20 11.5 4 4z" fill="currentColor"/></svg>
+            </button>
+            <span class="float-divider" aria-hidden="true" />
+            <button
+              type="button"
+              class="float-tool"
+              :class="{ active: activeTool === 'rect' }"
+              :disabled="!svgCode"
+              title="Rectangle"
+              @click="setActiveTool('rect')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="6" width="14" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+            </button>
+            <button
+              type="button"
+              class="float-tool"
+              :class="{ active: activeTool === 'circle' }"
+              :disabled="!svgCode"
+              title="Circle"
+              @click="setActiveTool('circle')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+            </button>
+            <button
+              type="button"
+              class="float-tool"
+              :class="{ active: activeTool === 'line' }"
+              :disabled="!svgCode"
+              title="Line"
+              @click="setActiveTool('line')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+            </button>
+            <span class="float-divider" aria-hidden="true" />
+            <button
+              type="button"
+              class="float-tool"
+              :class="{ active: activeTool === 'polyline' }"
+              :disabled="!svgCode"
+              title="Polyline"
+              @click="setActiveTool('polyline')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16l5-8 5 5 6-9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button
+              type="button"
+              class="float-tool"
+              :class="{ active: activeTool === 'pencil' }"
+              :disabled="!svgCode"
+              title="Pencil"
+              @click="setActiveTool('pencil')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5l4 4L8 20H4v-4L14.5 5.5z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><path d="M12.5 7.5l4 4" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+            </button>
+            <span class="float-divider" aria-hidden="true" />
+            <button
+              type="button"
+              class="float-tool"
+              :class="{ active: activeTool === 'text' }"
+              :disabled="!svgCode"
+              title="Text"
+              @click="setActiveTool('text')"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M12 5v14M8 19h8" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+
+          <div
             ref="stageRef"
             class="stage"
             :class="[`stage-${artboardBg}`]"
@@ -98,13 +180,15 @@
               :class="{
                 'has-selection': !!selectedId && selectedId !== svgRootId,
                 'root-selected': selectedId === svgRootId,
-                interacting: !!interaction,
+                interacting: !!interaction || !!drawSession || !!textEdit,
+                'draw-mode': activeTool !== 'select' && activeTool !== 'text',
+                'text-mode': activeTool === 'text',
               }"
               v-html="annotatedSvg"
               @pointerdown.capture="onSvgPointerDown"
             />
             <div
-              v-if="shapeOutline"
+              v-if="shapeOutline && activeTool === 'select' && !textEdit"
               class="shape-outline-box"
               :class="{ interacting: !!interaction }"
               :style="{
@@ -124,10 +208,34 @@
                 @pointerdown.stop.prevent="onResizePointerDown($event, h)"
               />
             </div>
+            <div
+              v-if="textEdit"
+              class="text-edit-overlay"
+              :style="{
+                left: `${textEdit.left}px`,
+                top: `${textEdit.top}px`,
+                minWidth: `${textEdit.minWidth}px`,
+                fontSize: `${textEdit.fontSizePx}px`,
+                color: textEdit.color,
+              }"
+              @pointerdown.stop
+              @click.stop
+            >
+              <input
+                ref="textEditInputRef"
+                v-model="textEdit.draft"
+                type="text"
+                class="text-edit-input"
+                :placeholder="'Type here…'"
+                @input="onTextEditInput"
+                @keydown="onTextEditKeydown"
+                @blur="finishTextEdit(true)"
+              />
+            </div>
           </div>
           <p v-if="error" class="stage-banner error">{{ error }}</p>
           <p v-else-if="!svgCode" class="stage-banner">Upload or paste an SVG to start</p>
-          <p v-else class="stage-banner tip">Drag to move · handles to resize · Shift locks aspect</p>
+          <p v-else class="stage-banner tip">{{ toolTip }}</p>
         </div>
       </section>
 
@@ -171,20 +279,51 @@
             <input v-model.number="insp.scalePct" type="range" min="25" max="300" step="1" @input="applyScalePct" />
           </div>
 
+          <div v-if="selectedIsText" class="insp-section">
+            <h3>Text</h3>
+            <label class="field">
+              Content
+              <input
+                v-model="insp.text"
+                type="text"
+                class="text-field"
+                placeholder="Enter text"
+                @change="applyTextContent"
+              />
+            </label>
+            <label class="field">
+              Font size {{ insp.fontSize }}
+              <input
+                v-model.number="insp.fontSize"
+                type="range"
+                min="1"
+                :max="fontSizeMax"
+                step="0.5"
+                @input="applyFontSize"
+              />
+            </label>
+          </div>
+
           <div class="insp-section">
             <h3>Colors</h3>
             <p v-if="selectedId && selectedId !== svgRootId" class="sel-hint">Editing: {{ selectedId }}</p>
             <p v-else class="sel-hint">Editing: SVG Root (all shapes)</p>
             <div class="color-block">
-              <span>Fill</span>
+              <span>{{ selectedIsText ? 'Color' : 'Fill' }}</span>
               <div class="color-row">
                 <input v-model="insp.fill" type="color" :disabled="insp.fillNone" @input="applyColors" />
-                <button type="button" class="none-btn" :class="{ on: insp.fillNone }" @click="toggleFillNone">
+                <button
+                  v-if="!selectedIsText"
+                  type="button"
+                  class="none-btn"
+                  :class="{ on: insp.fillNone }"
+                  @click="toggleFillNone"
+                >
                   Ø
                 </button>
               </div>
             </div>
-            <div class="color-block">
+            <div v-if="!selectedIsText" class="color-block">
               <span>Stroke</span>
               <div class="color-row">
                 <input v-model="insp.stroke" type="color" :disabled="insp.strokeNone" @input="applyColors" />
@@ -193,7 +332,7 @@
                 </button>
               </div>
             </div>
-            <label v-if="!insp.strokeNone" class="field">
+            <label v-if="!selectedIsText && !insp.strokeNone" class="field">
               Stroke width {{ insp.strokeWidth }}
               <input
                 v-model.number="insp.strokeWidth"
@@ -339,6 +478,22 @@ import {
   type SvgBBox,
   type SvgPoint,
 } from './svgInteract'
+import {
+  clientToElementLocal,
+  createDrawElement,
+  createTextElement,
+  isDrawTool,
+  pathHasEnoughPoints,
+  pointsToPathD,
+  shapeHasSize,
+  strokeOnlyTool,
+  thinPoints,
+  updateCircleGeometry,
+  updateLineGeometry,
+  updateRectGeometry,
+  type DrawStyle,
+  type EditorTool,
+} from './svgDraw'
 
 const emit = defineEmits<{
   ready: []
@@ -386,6 +541,8 @@ const insp = reactive({
   flipY: false,
   baseW: 24,
   baseH: 24,
+  text: '',
+  fontSize: 4,
 })
 
 let history: string[] = []
@@ -410,6 +567,37 @@ type Interaction = {
 
 const interaction = shallowRef<Interaction | null>(null)
 const DRAG_THRESHOLD_PX = 3
+
+type DrawSession = {
+  tool: Exclude<EditorTool, 'select'>
+  pointerId: number
+  id: string
+  startLocal: SvgPoint
+  points: SvgPoint[]
+  moved: boolean
+  /** Polyline stays open across clicks until finish/cancel. */
+  open: boolean
+  frozenMarkup: string
+}
+
+const activeTool = ref<EditorTool>('select')
+const drawSession = shallowRef<DrawSession | null>(null)
+
+type TextEditSession = {
+  id: string
+  isNew: boolean
+  draft: string
+  left: number
+  top: number
+  minWidth: number
+  fontSizePx: number
+  color: string
+  frozenMarkup: string
+}
+
+const textEdit = ref<TextEditSession | null>(null)
+const textEditInputRef = ref<HTMLInputElement | null>(null)
+let textEditFinishing = false
 
 const SKIP = new Set([
   'defs',
@@ -456,6 +644,11 @@ const displayW = computed(() => Math.round(insp.w))
 const displayH = computed(() => Math.round(insp.h))
 const stagePx = computed(() => Math.round(STAGE_BASE * zoom.value))
 const radiusMax = computed(() => Math.max(1, Math.round(Math.min(insp.baseW, insp.baseH) / 2)))
+const fontSizeMax = computed(() => Math.max(8, Math.round(Math.min(insp.baseW, insp.baseH))))
+const selectedIsText = computed(() => {
+  if (!selectedId.value || selectedId.value === SVG_ROOT_ID) return false
+  return findLayer(selectedId.value)?.type === 'text'
+})
 const radiusHint = computed(() => {
   if (selectedId.value && selectedId.value !== SVG_ROOT_ID) {
     const node = findLayer(selectedId.value)
@@ -464,10 +657,31 @@ const radiusHint = computed(() => {
   return 'Clipping whole icon with rounded corners'
 })
 
+const toolTip = computed(() => {
+  switch (activeTool.value) {
+    case 'rect':
+      return 'Drag to draw rectangle · Shift locks square · Alt+click selects · Esc select'
+    case 'circle':
+      return 'Drag to draw circle · Shift from center · Alt+click selects · Esc select'
+    case 'line':
+      return 'Drag to draw line · Shift locks axis · Alt+click selects · Esc select'
+    case 'polyline':
+      return 'Click to add points · Double-click or Enter to finish · Alt+click selects · Esc cancel'
+    case 'pencil':
+      return 'Drag to freehand draw · Alt+click selects · Esc select'
+    case 'text':
+      return 'Click to place text · Enter commits · Esc cancels'
+    default:
+      return 'Drag to move · double-click text to edit · Shift locks aspect'
+  }
+})
+
 /** Annotated markup for display (root dashed box; shape outline is a separate HTML overlay). */
 const annotatedSvg = computed(() => {
-  // Freeze markup while dragging so v-html does not wipe live DOM mutations.
+  // Freeze markup while dragging/drawing so v-html does not wipe live DOM mutations.
   if (interaction.value?.frozenMarkup) return interaction.value.frozenMarkup
+  if (drawSession.value?.frozenMarkup) return drawSession.value.frozenMarkup
+  if (textEdit.value?.frozenMarkup) return textEdit.value.frozenMarkup
 
   if (!svgCode.value) return ''
   try {
@@ -694,9 +908,10 @@ function buildTree(parent: Element, depth: number, counter: { n: number }): DomL
     }
     counter.n += 1
     const id = child.getAttribute('data-editor-id') || `${tag}-${counter.n}`
+    const textPreview = tag === 'text' ? (child.textContent || '').trim() : ''
     out.push({
       id,
-      label: tag.toUpperCase(),
+      label: textPreview ? `TEXT “${textPreview.slice(0, 18)}${textPreview.length > 18 ? '…' : ''}”` : tag.toUpperCase(),
       type: tag,
       indexLabel: `#${counter.n}`,
       visible: child.getAttribute('display') !== 'none' && child.getAttribute('visibility') !== 'hidden',
@@ -848,13 +1063,495 @@ function beginInteraction(
   }
 }
 
+function nextEditorId(tag: string): string {
+  const host = svgHostRef.value
+  const live = host?.querySelector('svg')
+  let max = 0
+  live?.querySelectorAll('[data-editor-id]').forEach((el) => {
+    const id = el.getAttribute('data-editor-id') || ''
+    const m = id.match(/-(\d+)$/)
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  })
+  return `${tag}-${max + 1}`
+}
+
+function currentDrawStyle(): DrawStyle {
+  return {
+    fill: insp.fill,
+    fillNone: insp.fillNone,
+    stroke: insp.stroke,
+    strokeNone: insp.strokeNone,
+    strokeWidth: insp.strokeWidth,
+  }
+}
+
+function liveWrapper(): SVGGElement | null {
+  const host = svgHostRef.value
+  const svg = host?.querySelector('svg')
+  if (!svg) return null
+  return (svg.querySelector(`g[data-editor-type="${WRAPPER}"]`) as SVGGElement | null) || (svg as unknown as SVGGElement)
+}
+
+function setActiveTool(tool: EditorTool) {
+  if (!svgCode.value && tool !== 'select') return
+  if (textEdit.value) finishTextEdit(true)
+  if (drawSession.value) cancelDrawSession(false)
+  activeTool.value = tool
+  if (tool !== 'select') {
+    // Clear selection so v-html is stable before the first draw stroke
+    // (changing selectedId mid-gesture would replace the live SVG DOM).
+    selectedId.value = ''
+    shapeOutline.value = null
+  } else {
+    void refreshShapeOutline()
+  }
+}
+
+function bindDrawWindowListeners() {
+  window.addEventListener('pointermove', onDrawPointerMove)
+  window.addEventListener('pointerup', onDrawPointerUp)
+  window.addEventListener('pointercancel', onDrawPointerUp)
+}
+
+function unbindDrawWindowListeners() {
+  window.removeEventListener('pointermove', onDrawPointerMove)
+  window.removeEventListener('pointerup', onDrawPointerUp)
+  window.removeEventListener('pointercancel', onDrawPointerUp)
+}
+
+function cancelDrawSession(commitNothing = true) {
+  const sess = drawSession.value
+  unbindDrawWindowListeners()
+  if (sess) {
+    const el = liveElement(sess.id)
+    el?.parentNode?.removeChild(el)
+  }
+  drawSession.value = null
+  if (commitNothing) {
+    // live node removed without commit — refresh from svgCode
+    // frozenMarkup cleared by nulling session; force re-render
+  }
+}
+
+async function placeTextAtPointer(e: PointerEvent) {
+  const host = svgHostRef.value
+  if (!host) return
+
+  e.preventDefault()
+  e.stopPropagation()
+
+  if (textEdit.value) {
+    finishTextEdit(true)
+    await nextTick()
+  }
+
+  if (selectedId.value) {
+    selectedId.value = ''
+    shapeOutline.value = null
+    await nextTick()
+  }
+
+  const wrap = liveWrapper()
+  const svg = host.querySelector('svg')
+  if (!wrap || !svg) return
+
+  const pt = clientToElementLocal(wrap, e.clientX, e.clientY)
+  const vb = readViewBox(svg)
+  const fontSize = Math.max(2, Math.round((Math.min(vb.w, vb.h) / 5) * 100) / 100)
+  const id = nextEditorId('text')
+  const style = currentDrawStyle()
+  const el = createTextElement(document, pt, style, id, fontSize, 'Text')
+  wrap.appendChild(el)
+
+  // Freeze live DOM (with new text) so overlay typing does not wipe the node.
+  const frozen = (() => {
+    const live = host.querySelector('svg')
+    if (!live) return annotatedSvg.value
+    const clone = live.cloneNode(true) as Element
+    clone.querySelectorAll('[data-editor-overlay]').forEach((n) => n.parentNode?.removeChild(n))
+    clone.querySelectorAll('[data-editor-selected]').forEach((n) => n.removeAttribute('data-editor-selected'))
+    return new XMLSerializer().serializeToString(clone)
+  })()
+
+  textEdit.value = {
+    id,
+    isNew: true,
+    draft: 'Text',
+    left: 0,
+    top: 0,
+    minWidth: 48,
+    fontSizePx: 16,
+    color: el.getAttribute('fill') || '#1a2332',
+    frozenMarkup: frozen,
+  }
+
+  await nextTick()
+  positionTextEditOverlay(id)
+  await nextTick()
+  const input = textEditInputRef.value
+  if (input) {
+    input.focus()
+    input.select()
+  }
+}
+
+function positionTextEditOverlay(id: string) {
+  const sess = textEdit.value
+  const el = liveElement(id)
+  const stage = stageRef.value
+  if (!sess || !el || !stage) return
+
+  const rect = elementScreenRect(el)
+  const stageRect = stage.getBoundingClientRect()
+  const fontSizeAttr = parseFloat(el.getAttribute('font-size') || String(insp.fontSize) || '4')
+  const ctm = el.getScreenCTM()
+  const scale = ctm ? Math.hypot(ctm.a, ctm.b) : 1
+
+  sess.left = rect.left - stageRect.left
+  sess.top = rect.top - stageRect.top
+  sess.minWidth = Math.max(48, rect.width + 12)
+  sess.fontSizePx = Math.max(12, fontSizeAttr * scale)
+  sess.color = el.getAttribute('fill') || '#1a2332'
+}
+
+function onTextEditInput() {
+  const sess = textEdit.value
+  if (!sess) return
+  const el = liveElement(sess.id)
+  if (el) el.textContent = sess.draft.length ? sess.draft : ' '
+  positionTextEditOverlay(sess.id)
+}
+
+function onTextEditKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    finishTextEdit(true)
+    return
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    finishTextEdit(false)
+  }
+}
+
+function finishTextEdit(save: boolean) {
+  const sess = textEdit.value
+  if (!sess || textEditFinishing) return
+  textEditFinishing = true
+
+  try {
+    const draft = sess.draft.trim()
+    const el = liveElement(sess.id)
+
+    if (!save) {
+      // Drop freeze → v-html reverts to last committed svgCode
+      textEdit.value = null
+      if (!sess.isNew) {
+        selectedId.value = sess.id
+        void refreshShapeOutline()
+      }
+      return
+    }
+
+    if (!draft) {
+      if (!sess.isNew && el) {
+        el.parentNode?.removeChild(el)
+        commitLiveHost(true)
+        textEdit.value = null
+        selectedId.value = ''
+        return
+      }
+      textEdit.value = null
+      return
+    }
+
+    if (el) el.textContent = draft
+    // Commit while freeze is still active so v-html does not wipe the live node first.
+    commitLiveHost(true)
+    textEdit.value = null
+    selectedId.value = sess.id
+    syncInspFromSelection()
+    void refreshShapeOutline()
+  } finally {
+    textEditFinishing = false
+  }
+}
+
+async function openTextEditor(id: string, isNew: boolean) {
+  const el = liveElement(id)
+  if (!el || el.tagName.toLowerCase() !== 'text') return
+
+  shapeOutline.value = null
+  const frozen = annotatedSvg.value
+  textEdit.value = {
+    id,
+    isNew,
+    draft: (el.textContent || '').trim() || 'Text',
+    left: 0,
+    top: 0,
+    minWidth: 48,
+    fontSizePx: 16,
+    color: el.getAttribute('fill') || '#1a2332',
+    frozenMarkup: frozen,
+  }
+  await nextTick()
+  positionTextEditOverlay(id)
+  await nextTick()
+  const input = textEditInputRef.value
+  if (input) {
+    input.focus()
+    input.select()
+  }
+}
+
+async function beginDragDraw(tool: Exclude<EditorTool, 'select' | 'polyline' | 'text'>, e: PointerEvent) {
+  const host = svgHostRef.value
+  if (!host) return
+
+  e.preventDefault()
+  e.stopPropagation()
+
+  // Drop selection first, then resolve wrap from the post-update live DOM.
+  // Resolving wrap before nextTick leaves a detached node after v-html refresh.
+  if (selectedId.value) {
+    selectedId.value = ''
+    shapeOutline.value = null
+    await nextTick()
+  }
+
+  const wrap = liveWrapper()
+  if (!wrap) return
+
+  const start = clientToElementLocal(wrap, e.clientX, e.clientY)
+  const tag = tool === 'pencil' ? 'path' : tool
+  const id = nextEditorId(tag)
+  const style = currentDrawStyle()
+  // Ensure stroke-only tools always paint a visible stroke
+  if (strokeOnlyTool(tool) && style.strokeNone) {
+    style.strokeNone = false
+  }
+  if (!strokeOnlyTool(tool) && style.fillNone && style.strokeNone) {
+    style.fillNone = false
+  }
+
+  const el = createDrawElement(document, tool, start, style, id)
+  wrap.appendChild(el)
+
+  drawSession.value = {
+    tool,
+    pointerId: e.pointerId,
+    id,
+    startLocal: start,
+    points: [{ ...start }],
+    moved: false,
+    open: false,
+    frozenMarkup: annotatedSvg.value,
+  }
+
+  bindDrawWindowListeners()
+  try {
+    host.setPointerCapture(e.pointerId)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function beginOrContinuePolyline(e: PointerEvent) {
+  const host = svgHostRef.value
+  if (!host) return
+
+  e.preventDefault()
+  e.stopPropagation()
+
+  const existing = drawSession.value
+
+  if (existing && existing.tool === 'polyline' && existing.open) {
+    const wrap = liveWrapper()
+    if (!wrap) return
+    const pt = clientToElementLocal(wrap, e.clientX, e.clientY)
+    // Double-click finish
+    if (e.detail >= 2) {
+      finishPolyline(true)
+      return
+    }
+    existing.points.push(pt)
+    const el = liveElement(existing.id)
+    if (el) el.setAttribute('d', pointsToPathD(existing.points))
+    return
+  }
+
+  if (selectedId.value) {
+    selectedId.value = ''
+    shapeOutline.value = null
+    await nextTick()
+  }
+
+  const wrap = liveWrapper()
+  if (!wrap) return
+  const pt = clientToElementLocal(wrap, e.clientX, e.clientY)
+
+  const id = nextEditorId('path')
+  const style = currentDrawStyle()
+  if (style.strokeNone) style.strokeNone = false
+
+  const el = createDrawElement(document, 'polyline', pt, style, id)
+  wrap.appendChild(el)
+
+  drawSession.value = {
+    tool: 'polyline',
+    pointerId: e.pointerId,
+    id,
+    startLocal: pt,
+    points: [{ ...pt }],
+    moved: false,
+    open: true,
+    frozenMarkup: annotatedSvg.value,
+  }
+}
+
+function onDrawPointerMove(e: PointerEvent) {
+  const sess = drawSession.value
+  if (!sess || sess.open) return
+  if (e.pointerId !== sess.pointerId) return
+
+  const wrap = liveWrapper()
+  const el = liveElement(sess.id)
+  if (!wrap || !el) return
+
+  const cur = clientToElementLocal(wrap, e.clientX, e.clientY)
+  const keepAspect = e.shiftKey
+
+  if (sess.tool === 'pencil') {
+    const last = sess.points[sess.points.length - 1]
+    if (!last || Math.hypot(cur.x - last.x, cur.y - last.y) >= 0.8) {
+      sess.points.push(cur)
+      sess.moved = true
+      el.setAttribute('d', pointsToPathD(sess.points))
+    }
+    return
+  }
+
+  const dist = Math.hypot(cur.x - sess.startLocal.x, cur.y - sess.startLocal.y)
+  if (!sess.moved && dist < 0.5) return
+  sess.moved = true
+
+  if (sess.tool === 'rect') updateRectGeometry(el, sess.startLocal, cur, keepAspect)
+  else if (sess.tool === 'circle') updateCircleGeometry(el, sess.startLocal, cur, keepAspect)
+  else if (sess.tool === 'line') updateLineGeometry(el, sess.startLocal, cur, keepAspect)
+}
+
+function onDrawPointerUp(e: PointerEvent) {
+  const sess = drawSession.value
+  if (!sess || sess.open) return
+  if (e.pointerId !== sess.pointerId) return
+
+  unbindDrawWindowListeners()
+  try {
+    if (svgHostRef.value?.hasPointerCapture(e.pointerId)) {
+      svgHostRef.value.releasePointerCapture(e.pointerId)
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const el = liveElement(sess.id)
+  let keep = false
+
+  if (sess.tool === 'pencil') {
+    const thinned = thinPoints(sess.points, 1.2)
+    if (el && pathHasEnoughPoints(thinned, 2)) {
+      el.setAttribute('d', pointsToPathD(thinned))
+      keep = true
+    }
+  } else if (el && shapeHasSize(sess.tool, el)) {
+    keep = true
+  }
+
+  if (!keep && el) {
+    el.parentNode?.removeChild(el)
+    drawSession.value = null
+    return
+  }
+
+  const id = sess.id
+  commitLiveHost(true)
+  drawSession.value = null
+  selectedId.value = id
+  syncInspFromSelection()
+  void refreshShapeOutline()
+}
+
+function finishPolyline(keep: boolean) {
+  const sess = drawSession.value
+  if (!sess || sess.tool !== 'polyline') return
+
+  const el = liveElement(sess.id)
+  if (!keep || !pathHasEnoughPoints(sess.points, 2)) {
+    el?.parentNode?.removeChild(el)
+    drawSession.value = null
+    return
+  }
+
+  if (el) el.setAttribute('d', pointsToPathD(sess.points))
+  const id = sess.id
+  commitLiveHost(true)
+  drawSession.value = null
+  selectedId.value = id
+  syncInspFromSelection()
+  void refreshShapeOutline()
+}
+
 async function onSvgPointerDown(e: PointerEvent) {
   if (e.button !== 0) return
   if (interaction.value) return
 
   const host = svgHostRef.value
+  if (!host || !svgCode.value) return
+
+  const tool = activeTool.value
+
+  if (isDrawTool(tool)) {
+    // Draw tools paint over existing shapes (Figma/Illustrator-style).
+    // Alt/Option+click still selects so users can jump out without the Select tool.
+    const hitId = hitEditorId(e.target as Element | null, e.currentTarget)
+    const stealToSelect =
+      e.altKey &&
+      !!hitId &&
+      !(drawSession.value?.tool === 'polyline' && drawSession.value.open) &&
+      !(drawSession.value && hitId === drawSession.value.id)
+
+    if (stealToSelect && hitId) {
+      setActiveTool('select')
+      e.preventDefault()
+      e.stopPropagation()
+      selectLayer(hitId)
+      await nextTick()
+      await refreshShapeOutline()
+      if (e.buttons === 0) return
+      beginInteraction('move', hitId, e)
+      return
+    }
+
+    if (tool === 'text') {
+      await placeTextAtPointer(e)
+      return
+    }
+
+    if (tool === 'polyline') {
+      await beginOrContinuePolyline(e)
+      return
+    }
+
+    // Start drag draw anywhere on the artboard (including over existing paths)
+    if (drawSession.value) return
+    await beginDragDraw(tool, e)
+    return
+  }
+
+  // select mode
+  if (drawSession.value || textEdit.value) return
   const id = hitEditorId(e.target as Element | null, e.currentTarget)
-  if (!id || !host) return
+  if (!id) return
 
   e.preventDefault()
   e.stopPropagation()
@@ -865,9 +1562,16 @@ async function onSvgPointerDown(e: PointerEvent) {
     await refreshShapeOutline()
   }
 
-  // Pointer released while waiting for selection paint
-  if (e.buttons === 0) return
+  // Double-click text → inline edit
+  if (e.detail >= 2) {
+    const node = findLayer(id)
+    if (node?.type === 'text') {
+      await openTextEditor(id, false)
+      return
+    }
+  }
 
+  if (e.buttons === 0) return
   beginInteraction('move', id, e)
 }
 
@@ -935,11 +1639,13 @@ function onInteractionEnd(e: PointerEvent) {
 }
 
 function onViewportClick() {
-  if (interaction.value) return
+  if (interaction.value || drawSession.value) return
+  if (activeTool.value !== 'select') return
   selectLayer(SVG_ROOT_ID)
 }
 
 function selectLayer(id: string) {
+  if (textEdit.value) finishTextEdit(true)
   // Clicking SVG Root again toggles the dashed root bounds off (OpenSVG-like)
   if (id === SVG_ROOT_ID && selectedId.value === SVG_ROOT_ID) {
     selectedId.value = ''
@@ -961,7 +1667,15 @@ function syncInspFromSelection() {
   const sample =
     el ||
     doc.querySelector(`g[data-editor-type="${WRAPPER}"] path, g[data-editor-type="${WRAPPER}"] > *`) ||
-    doc.querySelector('path, rect, circle, ellipse, polygon, polyline, line')
+    doc.querySelector('path, rect, circle, ellipse, polygon, polyline, line, text')
+
+  if (el && el.tagName.toLowerCase() === 'text') {
+    insp.text = (el.textContent || '').trim()
+    const fs = parseFloat(el.getAttribute('font-size') || '')
+    if (!Number.isNaN(fs) && fs > 0) insp.fontSize = fs
+  } else {
+    insp.text = ''
+  }
 
   if (sample) {
     const fill = sample.getAttribute('fill')
@@ -1027,6 +1741,13 @@ function eachTarget(doc: Document, fn: (el: Element) => void) {
 function applyColors() {
   const doc = parseLive()
   eachTarget(doc, (el) => {
+    const isText = el.tagName.toLowerCase() === 'text'
+    if (isText) {
+      el.setAttribute('fill', insp.fillNone ? '#1a2332' : insp.fill)
+      el.setAttribute('stroke', 'none')
+      el.removeAttribute('stroke-width')
+      return
+    }
     if (insp.fillNone) el.setAttribute('fill', 'none')
     else el.setAttribute('fill', insp.fill)
     if (insp.strokeNone) {
@@ -1038,6 +1759,29 @@ function applyColors() {
     }
   })
   commitDoc(doc)
+}
+
+function applyTextContent() {
+  if (!selectedIsText.value) return
+  const doc = parseLive()
+  const el = doc.querySelector(`[data-editor-id="${CSS.escape(selectedId.value)}"]`)
+  if (!el || el.tagName.toLowerCase() !== 'text') return
+  const next = insp.text.trim()
+  if (!next) return
+  el.textContent = next
+  commitDoc(doc)
+  void refreshShapeOutline()
+}
+
+function applyFontSize() {
+  if (!selectedIsText.value) return
+  const doc = parseLive()
+  const el = doc.querySelector(`[data-editor-id="${CSS.escape(selectedId.value)}"]`)
+  if (!el || el.tagName.toLowerCase() !== 'text') return
+  const size = Math.max(0.5, Number(insp.fontSize) || 1)
+  el.setAttribute('font-size', String(size))
+  commitDoc(doc)
+  void refreshShapeOutline()
 }
 
 function toggleFillNone() {
@@ -1388,6 +2132,36 @@ function resetAll() {
 function onKeydown(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+
+  if (e.key === 'Escape') {
+    if (textEdit.value) {
+      e.preventDefault()
+      finishTextEdit(false)
+      return
+    }
+    if (drawSession.value?.tool === 'polyline' && drawSession.value.open) {
+      e.preventDefault()
+      finishPolyline(false)
+      return
+    }
+    if (drawSession.value) {
+      e.preventDefault()
+      cancelDrawSession()
+      return
+    }
+    if (activeTool.value !== 'select') {
+      e.preventDefault()
+      setActiveTool('select')
+      return
+    }
+  }
+
+  if (e.key === 'Enter' && drawSession.value?.tool === 'polyline' && drawSession.value.open) {
+    e.preventDefault()
+    finishPolyline(true)
+    return
+  }
+
   if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId.value && selectedId.value !== SVG_ROOT_ID) {
     e.preventDefault()
     removeLayer(selectedId.value)
@@ -1414,7 +2188,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onInteractionMove)
   window.removeEventListener('pointerup', onInteractionEnd)
   window.removeEventListener('pointercancel', onInteractionEnd)
+  unbindDrawWindowListeners()
   interaction.value = null
+  drawSession.value = null
+  textEdit.value = null
   if (toastTimer) clearTimeout(toastTimer)
 })
 
@@ -1682,6 +2459,97 @@ defineExpose({
   padding: 1.5rem;
 }
 
+.float-toolbar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.1);
+  pointer-events: auto;
+}
+
+.float-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: #e5e7eb;
+  flex-shrink: 0;
+}
+
+.float-tool {
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+}
+
+.float-tool svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.float-tool:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.float-tool.active {
+  background: color-mix(in srgb, var(--studio-accent) 14%, #fff);
+  color: var(--studio-accent);
+}
+
+.float-tool:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.svg-host.draw-mode,
+.svg-host.draw-mode :deep(path),
+.svg-host.draw-mode :deep(rect),
+.svg-host.draw-mode :deep(circle),
+.svg-host.draw-mode :deep(ellipse),
+.svg-host.draw-mode :deep(polygon),
+.svg-host.draw-mode :deep(polyline),
+.svg-host.draw-mode :deep(line),
+.svg-host.draw-mode :deep(text),
+.svg-host.draw-mode :deep(g),
+.svg-host.draw-mode :deep(svg) {
+  cursor: crosshair;
+}
+
+.svg-host.text-mode,
+.svg-host.text-mode :deep(path),
+.svg-host.text-mode :deep(rect),
+.svg-host.text-mode :deep(circle),
+.svg-host.text-mode :deep(ellipse),
+.svg-host.text-mode :deep(polygon),
+.svg-host.text-mode :deep(polyline),
+.svg-host.text-mode :deep(line),
+.svg-host.text-mode :deep(text),
+.svg-host.text-mode :deep(g),
+.svg-host.text-mode :deep(svg) {
+  cursor: text;
+}
+
 .viewport.bg-checker {
   background-color: #f1f5f9;
 }
@@ -1742,8 +2610,44 @@ defineExpose({
 .svg-host :deep(polygon),
 .svg-host :deep(polyline),
 .svg-host :deep(line),
+.svg-host :deep(text),
 .svg-host :deep(g) {
   cursor: pointer;
+}
+
+.text-edit-overlay {
+  position: absolute;
+  z-index: 6;
+  pointer-events: auto;
+  transform: translateY(-1px);
+}
+
+.text-edit-input {
+  display: block;
+  width: 100%;
+  min-width: inherit;
+  margin: 0;
+  padding: 1px 4px;
+  border: 1.5px solid #6366f1;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.94);
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  line-height: 1.2;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  box-sizing: border-box;
+}
+
+.text-field {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--sf-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
 }
 
 .svg-host.root-selected :deep(svg) {
